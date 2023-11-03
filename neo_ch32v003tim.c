@@ -41,7 +41,11 @@ void neo_begin()
     _neo_period = 160;
     _neo_onetime = 70;
     _neo_zerotime = 140;
-    _neo_latchtime = 8000;
+    _neo_latchtime = 6000;
+
+    neogpio.GPIO_Pin = GPIO_Pin_4;
+    neogpio.GPIO_Speed = GPIO_Speed_50MHz;
+    neogpio.GPIO_Mode = GPIO_Mode_AF_PP;
 
     neotim.TIM_Period = _neo_period;
     neotim.TIM_Prescaler = 0x00;
@@ -52,17 +56,12 @@ void neo_begin()
     neooc.TIM_OCMode = TIM_OCMode_PWM1;
     neooc.TIM_OutputState = TIM_OutputState_Enable;
     neooc.TIM_OutputNState = TIM_OutputNState_Enable;
-    neooc.TIM_Pulse = 0;
+    neooc.TIM_Pulse = 0x0000;
     neooc.TIM_OCPolarity = TIM_OCPolarity_Low;
     neooc.TIM_OCNPolarity = TIM_OCNPolarity_High;
-    neooc.TIM_OCIdleState = TIM_OCIdleState_Reset;
+    neooc.TIM_OCIdleState = TIM_OCIdleState_Set;
     neooc.TIM_OCNIdleState = TIM_OCNIdleState_Reset;
-
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC | RCC_APB2Periph_TIM1, ENABLE);
-
-    neogpio.GPIO_Pin = GPIO_Pin_4;
-    neogpio.GPIO_Speed = GPIO_Speed_50MHz;
-    neogpio.GPIO_Mode = GPIO_Mode_AF_PP;
 
     GPIO_Init(GPIOC, &neogpio);
     TIM_OC4Init(TIM1, &neooc);
@@ -84,8 +83,8 @@ unsigned char neo_start()
     {
         _neo_sending = 0xff;
 
-        TIM1->CH4CVR = 0xffff;
-        TIM1->ATRLR = _neo_period;
+        TIM1->CH4CVR = 0x0000;
+        TIM1->ATRLR = _neo_latchtime;
 
         TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);
 
