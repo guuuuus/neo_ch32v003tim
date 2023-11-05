@@ -9,10 +9,10 @@ unsigned short _neo_period;
 NEO_CONTINUES _neo_continues = NEO_SINGLE;
 volatile unsigned char _neo_sending = 0x00;
 
-unsigned short _neo_onetime = 300;
-unsigned short _neo_zerotime = 60;
-unsigned short _neo_latchtime = 0x0fff;
-
+#define _neo_onetime 100
+#define _neo_zerotime 155
+#define _neo_latchtime 5000 // for newer ws2812's this could be set to ~5000, but for older ws2811's is now 16000....
+#define _neo_period 160
 void neo_beginBuff(unsigned char *p, unsigned short len, NEO_CONTINUES cont)
 {
     _neo_buf = p;
@@ -23,10 +23,13 @@ void neo_beginBuff(unsigned char *p, unsigned short len, NEO_CONTINUES cont)
 
     if (_neo_continues == NEO_CONSTANT)
     {
+        TIM_CCxCmd(TIM1, TIM_Channel_4, TIM_CCx_Enable);
         TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);
         NVIC_EnableIRQ(TIM1_UP_IRQn);
         NVIC_SetPriority(TIM1_UP_IRQn, 0x00);
         _neo_sending = 0xff;
+    }else{
+        TIM_CCxCmd(TIM1, TIM_Channel_4, TIM_CCx_Disable);
     }
 }
 
@@ -38,10 +41,10 @@ void neo_begin()
 
     // so these values seem to work with all the ws2812's/sk's i have laying around.
     // its a (little) out of spec(slow), +-300khz instead of 400khz.
-    _neo_period = 160;
-    _neo_onetime = 70;
-    _neo_zerotime = 140;
-    _neo_latchtime = 6000;
+    // _neo_period = 160;
+    // _neo_onetime = 70;
+    // _neo_zerotime = 140;
+    // _neo_latchtime = 5000;
 
     neogpio.GPIO_Pin = GPIO_Pin_4;
     neogpio.GPIO_Speed = GPIO_Speed_50MHz;
@@ -56,7 +59,7 @@ void neo_begin()
     neooc.TIM_OCMode = TIM_OCMode_PWM1;
     neooc.TIM_OutputState = TIM_OutputState_Enable;
     neooc.TIM_OutputNState = TIM_OutputNState_Enable;
-    neooc.TIM_Pulse = 0x0000;
+    neooc.TIM_Pulse = 0xffff;
     neooc.TIM_OCPolarity = TIM_OCPolarity_Low;
     neooc.TIM_OCNPolarity = TIM_OCNPolarity_High;
     neooc.TIM_OCIdleState = TIM_OCIdleState_Set;
@@ -69,7 +72,6 @@ void neo_begin()
     TIM_TimeBaseInit(TIM1, &neotim);
 
     // NVIC_SetPriority(TIM1_UP_IRQn, 0x00); // 00 is highest?
-    TIM_CCxCmd(TIM1, TIM_Channel_4, TIM_CCx_Enable);
 
     TIM_CtrlPWMOutputs(TIM1, ENABLE);
     TIM_Cmd(TIM1, ENABLE);
@@ -83,10 +85,11 @@ unsigned char neo_start()
     {
         _neo_sending = 0xff;
 
-        TIM1->CH4CVR = 0x0000;
+        TIM1->CH4CVR = 0xffff;
         TIM1->ATRLR = _neo_latchtime;
 
         TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);
+        TIM_ForcedOC1Config(TIM1, TIM_ForcedAction_InActive);
 
         NVIC_EnableIRQ(TIM1_UP_IRQn);
         // still set?
@@ -132,11 +135,23 @@ void TIM1_UP_IRQHandler(void)
         _neo_bitcount = 1;
         TIM1->ATRLR = _neo_period;
         _neo_state = NEO_DATA;
+
         break;
 
         break;
 
     case NEO_DATA:
+        // TIM_CCxCmd(TIM1, TIM_Channel_4, TIM_CCx_Enable);
+        // void TIM_CCxCmd(TIM_TypeDef *TIMx, uint16_t TIM_Channel, uint16_t TIM_CCx)
+        // {
+        //     uint16_t tmp = 0;
+
+        //     tmp = CCER_CCE_Set << TIM_Channel;
+        //     TIMx->CCER &= (uint16_t)~tmp;
+        //     TIMx->CCER |= (uint16_t)(TIM_CCx << TIM_Channel);
+        // }
+        // TIMx->CCER &= 0xe000; //0x1<<12
+        TIM1->CCER |= 0x1000; // 0x
 
         switch (_neo_bitcount)
         {
@@ -237,6 +252,9 @@ void TIM1_UP_IRQHandler(void)
         if (_neo_continues == NEO_SINGLE)
         {
             TIM_ITConfig(TIM1, TIM_IT_Update, DISABLE);
+            // TIM_CCxCmd(TIM1, TIM_Channel_4, TIM_CCx_Disable);
+            TIM1->CCER &= 0xe000; // 0x1<<12
+
             _neo_sending = 0x00;
         }
         break;
